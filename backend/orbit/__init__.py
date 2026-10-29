@@ -25,6 +25,6 @@ C_LIGHT = 299_792.458       # km/s
 AU = 149_597_870.7          # km, mean earth-sun disatnce 
 BOLTZMANN_DBW = -228.6      # dBW/K/Hz, Boltzmann constant in decibles
 
-SECONDS_PER_DAY = 86_400.0 
+SECONDS_PER_DAY = 86_400.0
 TWO_PI = 2 * math.pi 
 
