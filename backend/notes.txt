@@ -5,4 +5,116 @@
 Every file is in order for now, more will be added
   - for now I will add it to the repo
 
+
+What I am building:
+ - ORBIT Live is a python physics engine feeding a React mission-control screen. Python will turn the public orbit data into positions, passes, signal and alerts, then from there React  draws them on a live 3D globe that updates every second!!! 
+
+ - in more context: CelesTrak's TLEs land in a cache and a history table. Each physics module in (backend/orbit) is one part of the stream, and then the tracker glues them into one answer per satellite. 
+ - FastApi mission clock runs that answer for every satellite once a second and pushes it down a WebSocket
+ - slower questions like "next 24 hours of passes" go over plain REST. In the browser, one hook owns the WebSocket and every panel reads from it  
+
+SETUP: basically what i just did, the physics lives in python because the math reads cleanly there and numpy does thousands of positions at once. There will be a dashboard which will live in React because a 3D globe needs a browser. From that it will talk over HTTP and WebSocket
+
+
+Part 1: Orbits from first principles 
+what the output should be: a calculator that turns lets say "15.5 orbits per day" into a ISS altitude ~ (417km) and the speed (27,573kn/h) (17,200 mph)
+
+- a satellite is always falling. It moves sideways so fast that the ground curves away as fast as it drops. This is Newtons cannonball
+
+- gravity supplies exactly the pull needed to bend its path into a circle or ellipse. Because of that we'll set gravity equal to that pull and then it'll formulate the orbital speed
+
+- KEPLER 3 LAWS!!
+    - orbits are ellipses with Earth at one focus
+      - a satellite moves fastest when closest 
+        - the square of the period grows with the cube of the orbits size 
+ - 6 numbers pin down any orbit
+    - basically think of a hulu hoop with a bead on it. 
+      - Size a and shape e describe the hoop  
+          - Tilt i, swivel RAAN (omega) and where the low point faces (w) orient it in space
+            - Mean anomaly M says where the bead is right now 
+
+(LETS SEE WHAT CHAT SAYS!!!)
+ - Newtons cannonball: A satellite is constantly falling toward Earth, but moving sideways fast enough that it keeps missing the ground.
+    - basically needs to travel at speed of 17,200mph for a circular orbit 
+        - at that speed an orbit around Earth takes 93 min!!!
+            - A satellite stays in orbit because of the combination of:
+              Gravity pulling inward + sideways velocity carrying it forward.
+      - Understanding gravity and why physicists use μ = GM
+        - Newton discovered that any two objects with mass attract each other.
+          - Earth attracts the Moon.
+          - The Sun attracts Earth.
+          - Earth attracts a satellite.
+          - Even two people standing beside each other attract gravitationally, although the force is tiny.
+            - F = GMm/r^2
+              - F = Gravitational force, measured in newtons
+              - G = Universal gravitational constant
+              - M = Mass of Earth (or another central body)
+              - m = Mass of the satellite
+              - r = Distance between the centers of the two objects
+                - This tell us 2 key detials:
+                  - More mass means more gravitational attraction
+                  - Greater distance means weaker gravitational attraction
+                    - Because distance is squared, doubling the distance reduces gravitational force to one-quarter of its original strength.
+                      - another Newton Equation: F = m * a 
+                        - Force = mass * acceleration
+                          - acceleration = how quickly velocity changes
+                            - A satellite can be accelerating even when its speed stays constant, because its direction is changing
+              - when you combine the two Equations the small m cancels out
+                - from that we discover:  Under the same conditions, a satellite's gravitational acceleration does not depend on how much the satellite weighs.
+                  - A 100 kg satellite and a 1,000 kg satellite follow the same ideal orbit when starting with identical positions and velocities.
+
+      - What is μ?
+        - standard gravitational parameter
+          - μ describes the strength of a planet's gravity in a form that's directly useful for orbital calculations
+
+- Kepler's third law — How long does a satellite take to orbit Earth?
+  - The farther out the orbit is, the longer the satellite takes to complete one revolution
+    - First law: Orbits are ellipses:
+      - Planets generally follow oval-shaped paths, with the Sun at one focus rather than necessarily at the center.
+    - Second Law; Orbital speed changes 
+      - A satellite moves faster when closer to the object it orbits and slower when farther away. The line connecting them sweeps out equal areas in equal times
+    - Third Law: Bigger orbits take longer
+      - The orbital period squared is proportional to the orbit's semi-major axis cubed
+- Classical orbital elements - 6 numbers that describe an orbit 
+  - basically its describing a running track in three-dimensional space.
+    - element:                     Symbol:             Meaning:
+      Semi-major axis                a                 How big is the orbit?
+      Eccentricity                   e                 How circular or stretched is it?
+      Inclination                    i                 How tilted is the orbit?
+      RAAN                          (omega)         Which direction is the tilted orbit facing?
+      Argument of periapsis          w                 Where is its closest point?
+      True anomaly                   v                 Where is the satellite right now?
+
+
+- The vis-viva equation — How fast is the satellite moving?
+  - the idea is to calculate satellite speed at any point
+    - equation:
+      v = square root (μ (2/r - 1/a))
+      - Symbol:                   Meaning: 
+        v                         Speed of the satellite
+        μ                         Gravitational parameter
+        r                         Current distance from Earth's center
+        a                         Semi-major axis of the orbit
+
+- Kepler's equation — Predicting where the satellite will be
+  - First, understand three different angles (all describe progress around an elliptical orbit)
+    - Angle:                Symbol:              Meaning:
+      Mean anomaly           M                   How far along the orbit we'd be if angular motion were uniform
+      Eccentric anomaly      E                   A mathematical helper angle based on a circle surrounding the ellipse
+      True anomaly           v                   The actual angle locating the satellite relative to Earth
+
+      - Think of mean anomaly as a clock measuring progress around the orbit.
+        - After 0 minutes, mean anomaly is 0°.
+        - After 25 minutes, it's 90°.
+        - After 50 minutes, it's 180°.
+        - After 75 minutes, it's 270°.
+      - But in an elliptical orbit, the satellite's true anomaly generally differs from its mean anomaly because its speed varies.
+
+
+- Newtons Method (Newton-Raphson)
+  - numerical technique for finding solutions to equations.
+    - It works by making an initial guess and repeatedly improving it.
+
+
+
 """
