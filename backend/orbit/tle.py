@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone 
 
 from .kepler import (
-    perigree_apogee_alt_km,
+    perigee_apogee_alt_km,
     semi_major_axis_km
 )
 
@@ -59,7 +59,7 @@ def checksum(line: str) -> int:
     """
     total = 0
     for ch in line[:68]:
-        if ch.isdigit():
+        if ch.isdigit(): 
             total+=int(ch)
         elif ch == "-":
             total+=1 
@@ -70,10 +70,26 @@ def _implied_decimal(field: str) -> float:
     """ parse TLE exponent notation: 12345-3 means 0.12345-3"""
     field = field.strip() # remove spaces from the beginning and end of string 
     if not filed:
-        return 0.0
-    sign = -1.0 if field[0] == "-" ekse 1.0 # determine the sign 
+       return 0.0
+    sign = -1.0 if field[0] == "-" else 1.0 # determine the sign 
     field = field.lstrip("+-") # remove the leading sign 
     mantissa, exponent = field[:-2], field[-2:] # mantissa is the main numerical portion. the exponent determines the power of 10
     return sign * float("0." + mantissa) * 10 ** int(exponent) # calculate the real number 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
