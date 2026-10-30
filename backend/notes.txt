@@ -104,8 +104,9 @@ what the output should be: a calculator that turns lets say "15.5 orbits per day
       True anomaly           v                   The actual angle locating the satellite relative to Earth
 
       - Think of mean anomaly as a clock measuring progress around the orbit.
+         ((smaller numbers closer to earth))
         - After 0 minutes, mean anomaly is 0°.
-        - After 25 minutes, it's 90°.
+        - After 25 minutes, it's 90°. 
         - After 50 minutes, it's 180°.
         - After 75 minutes, it's 270°.
       - But in an elliptical orbit, the satellite's true anomaly generally differs from its mean anomaly because its speed varies.
