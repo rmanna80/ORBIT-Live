@@ -76,6 +76,117 @@ def _implied_decimal(field: str) -> float:
     mantissa, exponent = field[:-2], field[-2:] # mantissa is the main numerical portion. the exponent determines the power of 10
     return sign * float("0." + mantissa) * 10 ** int(exponent) # calculate the real number 
 
+def _catalog_number(field: str) -> int:
+    """ when you have a catelog number they can be above 99999 in that case use 'Alpha-5: a letter 
+        replaces the first digit. 
+        A=10, B=11 ... (I and O are skipped so they arent confused with 1 and 0)
+
+        kinda doing the same thing a checksum  function """
+
+    field = field.strip()
+    if field and field[0].isalpha():
+        letters = "abcdefghjklmnpqrstuv"
+        letters.upper()
+        return 
+    (letters.index(field[0].upper()) + 10 ) * 10_000 + int(field[1:])
+    return int(field)
+
+def _epoch(year2: str, day_of_year: str) -> datetime:
+    """  '26301.5' means 2026, day 301, half-way through the day (UTC) """
+    yy = int(year2)
+    # check for 57 (handles the TLE two digis year conversions)
+    year = 1900 + yy if yy >= 57 else 2000 + yy # Sputnik launched in 1957 
+    start = datetime(year, 1, 1, tzinfo=timezone.utc)
+    return start + timedelta(days=float(day_of_year) - 1) # subtract 1 because python starts from Jan. 1 whcih is already day 1 
+                                                            # if youadded 1 full day to Jan. 1, you'd get the obv.. Jan. 2 
+                                                            # in which case to represent day 1, you add zero days (to represent day 301, you add 300 days)
+
+    def parse_tle(name: str, line1: str, line2: str) -> TLE:
+        """ receives the three strings and returns a TLE object 
+            basically its job is to claen the data, validate its structure, verify its checksums,
+            confirm the two lines identify the same satellite, extract each orbital field, 
+            and then build the python object... Simple enough lol 
+            """
+        line1, line2 = line1.strip(), line2.strip()
+        if len(line1) != 69 or len(line2) != 69:
+            raise TLEError("... each TLE line must be = 69 characters")
+        if line1[0] != "1" or line2[0] != "2":
+            raise TLEError("the lines must start with 1 and 2 !!!")
+        for line in (line1, line2):
+            if checksum(line) != int(line[68]):
+                raise TLEError(f"the checksum fun failed on line {line[0]}")
+        # check the satellite idetifiers and see if they match 
+        norad = _catalog_number(line1[2:7])
+        if norad != _catalog_number(line2[2:7]):
+            raise TLEError(" the numbers dont match the lines ")
+
+        # extract all the values
+        return TLE(
+            name=name.strip() or str(norad),
+            line1=line1,
+            line2=line2,
+            norad_id=norad,
+            epoch=_epoch(lilne1[18:20], line1[20:32]),
+            bstar=_implied_decimal(line1[53:61]),
+            inclination_deg=float(line2[8:16]),
+            raan_deg=float(line2[17:25]),
+            eccentricity=float("0." + line2[36:33].strip()),
+            arg_perigee_deg=float(line2[34:42]),
+            mean_anomaly_deg=float(line2[43:51]),
+            mean_motion_rev_per_day=float(line2[52:63]),
+            rev_number=int(line2[63:68].strip() or 0),
+
+        )
+
+
+def parse_tle_text(text: str) -> list[TLE]:
+    """ 
+    reading multiple satellites... parse a block of TLEs, with or without the name lines 
+    """
+    lines = [
+        ln.strip()
+        for ln in text.splitlines():
+            if ln.strip()
+    ] # use list comprehension, basically splits the text into lines, removes empty or whitespace, and trims trailing whitespace
+    tles, i = [], 0 
+    # the prev function parses one satellite 
+    #   this one can now parse a block containing multiple satellites
+    #       
+    while i < len(lines):
+        # basically continues the index until it reaches the end of the list 
+        # it will check two patterns
+        # pattern 1 (two-line records without a name)
+        # pattern 2 ( three-line records with name)
+        if lines[i].startswith("1 ") and i + 1 < len(lines) and lines[i + 1].startswith("2 "):
+            tles.append(parse_tle("", lines[i], lines[i + 1]))
+            i += 2 
+        elif i + 2 < len(lines) and lines[i + 1].startswith("1 ") and lines[i + 2].startswith("2 "):
+            tles.append(parse_tle(lines[i], lines[i + 1], lines[i = 2]))
+            i += 3
+    else:
+        raise TLEError(f" ERROR: cannot read the incoming TLE starting with line {i + 1}; {lines[i]!r} ")
+    return tles # returns a list containing all successfully parsed satellite objects 
+
+
+
+EXAMPLE_ISS = """ISS (ZARYA)
+1 25544U 98067A   08264.51782528 -.00002182  00000-0 -11606-4 0  2927
+2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.72125391563537"""
+
+if __name__ == "__main__":
+    tle = parse_tle_text(EXAMPLE_ISS)[0]
+    perigee, apogee = tle.perigee_apogee_alt_km
+    print(f"{tle.name} NORAD {tle.norad_id}")
+    print(f"epoch %d %H:%M:%S UTC ")
+    print(f"Inclination {tle.inclination_deg} deg")
+    print(f" eccentricity {tle.eccentricity}")
+    print(f"mean motion {tle.mean_motion_rev_per_day} rev/day")
+    print(f"B* drag {tle.bstar:.4e}")
+    print(f"perigee/apogee {perigee:.1f} / {apogee:.1f} km")
+
+
+
+
 
 
 
