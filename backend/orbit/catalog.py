@@ -38,7 +38,7 @@ def _download(norad_id: int) -> str:
         },
         headers = {
             "User-Agent": "ORBIT-Live"
-        },
+        }, 
         timeout = 15,
 
     )

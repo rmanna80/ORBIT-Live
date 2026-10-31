@@ -172,4 +172,122 @@ OMM (Orbit Mean-Elements Message). This is just a newer, more modern way to pack
 In short: You are looking at the instruction manual for downloading satellite tracking data. You need to read the columns to know where the satellite is, and you must respect the 2-hour wait time so the free data provider doesn't ban you.
 
 
+
+=========================== PART 3 =========================================
+
+LETSSSS GOOOOOOO!!!!!!!!
+
+little recap:
+- Part 1: learned how to calculate orbital periods, speeds, and the shape of an orbit using Newtons and Keplers equations 
+- Part 2: learned how to download satellite orbital information, validate it, and store it locally 
+
+Now were going to take all of that data and connect to actual satellite tracking!!!
+
+Part 3: basically this is going to answer one quesiton >> Given a satellites TLE and a particular time, where is the satellite, and how fast is it moving?
+
+
+What are WE going to build?!?!?!?!?
+- basically imagine you run ORBIT and select the International Space Station 
+    - the program already knows how to retrieve an ISS TLE
+But..... supppose you ask this question:
+  - where will the ISS be at 8:00pm?
+    - The TLE doesnt directly contain the ISS's position at 8:00pm
+        - it contains oribital information associated with a specific reference time called the EPOCH!!!
+          - for that you will need a method that uses those orbital elements to PREDICT the satellites position at the requested time (this case 8:00pm)
+            - THIS IS CALLED PROPAGATION!!!!!!!!
+
+
+- Can't use the equations from part 1 (newtons law of gravity and Keplers equations)
+  - reason being is that the model imagines Earth as a perfectly spherical gravitational souce, with no atmosphere and no other bodies affecting the satellite
+    - But we know this to not be true... Earth isnt perfectly spherical!!!
+      - Earth is slightly wider around its equator than from pole to pole 
+        - this slight bulge changes how gravity acts on orbiting satellites
+
+- Lets take a look at Earth's equatorial bulge 
+  - earths gravity isnt exactly the same as that of a perfectly spherical body 
+    - the equatorial bulge produces a small, persistent disturbance to the orbit 
+      - overtime, this can rotate the orbit's orientation around Earth 
+        - This is called NODAL PRECESSION!!!!
+
+- Lets take a look at Atmospheric drag
+  - even hundreds of km above earth surface, there are still particles from the upper atmosphere (basically meaning that the atmosphere does not instantly end; instead it fades very slowly into the vacuum of space)
+    - a low orbit satellite collides with those particles as it moves 
+      - this is called DRAG and can gradually change its orbit 
+        - this effect depends on factors such as altitude, atmospheric density, satellite size, mass, and solar activity 
+
+- Lets take a look at the Sun and the Moon 
+  - the sun and the moon also exert gravitational forces on earth-orbiting satellites
+    - their effects become important for many high-altitude orbits 
+
+- Using SGP4
+  - this stands for Simplified General Pertubation 4
+    - it is a mathematical model designed to predict satellite motion from compatible orbital elements while accounting approximately for important pertubations 
+      - uses an analytical propagation approach to evaluate a requested time directly 
+        - doesnt guarantee a km of accuract for every satellite or time
+
+
+- Lets take a look at J2 - Why a satellite's orbit slowly rotate
+  - lets revisit inclination and RAAN 
+    - inclination = tells us how much the orbital plane is tilted relative to Earth's equator 
+    - RAAN (Right Ascension of the Ascending Node) = describes the orientation of that Orbital plane around Earth's rotation axis 
+      - imagine a tilted hula hoop around earth:
+        - the hoop represents the satellites orbital plane 
+          - now image that hoop slowly rotating around earths axis, while maintaining approximately the same tilt 
+            - that's the type of motion the J2 effect can produces
+  - what is J2?
+    - J2 is a dimensionless number describing the dominant effect of Earth's equatorial bulge on its gravitational field 
+      - its approximate value is:
+          J2 = 0.00108263
+          - looks like a small number and it is 
+            - but a satellite circles earth repeatedly, so this small effect accumulates over time 
+              - for an ISS-like orbit, the orbital plane rotates several degrees per day in an Earth-centred inertial reference parameter
+    - why does this matter?
+      - because the satellite doesnt travel along exactly the same fixed orbital ellipse forever
+        - the orientation of its orbit changes 
+  - J2 formula
+    - basically the important idea is that the amount of orbital plane rotation depends on the satellites orbital size, shape, tile, and earths gravity field
+
+
+- Lets take a look at Sun-synchronous satellites - Why some orbits use J2 intentionally 
+  - since we know that the orbital change doesnt follow the same path 
+    - the goal is to choose an orbit where the orbital plane's orientation advances at approximately the same rate as Earth's direction toward the Sun that changes over a year:
+      - rate is approximately 
+        360(degrees)/365.24 days = 0.9856(degrees)/day 
+        - when these rates match, the satellite maintains approximately the same lcoal solar time at its equator crossings:
+          - WHY IS THIS USEFUL????????  
+            - imagine Landsat taking photographs of the same location on different days
+              - if the lighting conditions are roughly consistent, comparing those images becomes easier 
+                - this is valuable for environment monitoring, agriculture, land use analysis, and satellite imagery 
+- Pseudocode for J2:
+  Receive:
+    Mean motion
+    Semi-major axis
+    Eccentricity
+    Inclination
+
+Get Earth's J2 constant and radius.
+
+Convert mean motion to radians per day.
+
+Convert inclination to radians.
+
+Calculate p = a × (1 − e²).
+
+Calculate the J2 drift formula.
+
+Convert the result from radians/day to degrees/day.
+
+Return the drift.
+
+- Understanding TEME - why these aren't latitude and longitude yet 
+  - the SGP4 returns position coordinates 
+    (x, y, z)
+    - but the frontend  eventually needs lat and long to show a satellite over Earth 
+      - why doesnt SGP4 just return those?
+        - because of orbital physics  and geographic mapping that use different reference frames
+          - SGP4 returns positions and velocity in TEME, which stands for True Equator, Mean Equinox 
+      - TEME is an Earth-centered, approximately inertial reference frame 
+        - its axes dont simpily rotate along with Earths surface 
+          TEME->Earth-fixed coordinates->latitude, longitude, altitude
+
 """
