@@ -11,7 +11,7 @@ from .tle import TLE, parse_tle
 
 DB_PATH = DATA_DIR / "tle_history.sqlite"
 
-def _connect() -< sqlite3.Connection:
+def _connect() -> sqlite3.Connection:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(DB_PATH)
     db.execute(
@@ -41,7 +41,7 @@ def save(tle: TLE) -> bool:
     with _connect() as db: # with allows for SQLite connections, blocks transactions to be committed on successfully completion or rolled back if an expection occurs 
         cur = db.execute(
             "INSERT OR IGNORE INTO tle_history VALUES (?, ?, ?, ?, ?, ?)",
-            (tle.norad_id, tle.epoch.isoformat(), tle.name, tle.line1, tle.line2, datetime.now(timezone.utc).isoformat()).
+            (tle.norad_id, tle.epoch.isoformat(), tle.name, tle.line1, tle.line2, datetime.now(timezone.utc).isoformat()),
             
         )
         # the ? are just placeholders for now (also helps protect against SQL injection)
@@ -60,7 +60,7 @@ def load(norad_id: int) -> list[TLE]:
     with _connect() as db:
         rows = db.execute(
             """ 
-            SELECT name, line1, line2
+            SELECT name, line1, line2 
             FROM tle_history
             WHERE norad_id = ?
             ORDER BY epoch

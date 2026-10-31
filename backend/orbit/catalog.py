@@ -27,26 +27,25 @@ log = logging.getLogger("orbit.catelog")
 
 
 def _cache_path(norad_id: int) -> str:
+    return CACHE_DIR / f"{norad_id}.tle"
+
+
+def _download(norad_id: int) -> str:
     resp = httpx.get(
         CELESTRAK_GP,
         params = {
-            "CATNR": norad_id,
-            "FORMAT": "TLE"
+            "CATNR": norad_id, "FORMAT": "TLE"
         },
         headers = {
-            "User-Agent": "ORBIT-Live (Project)"
+            "User-Agent": "ORBIT-Live"
         },
         timeout = 15,
-    ) 
-    # httpx is a pyhton library for making HTTP requests 
-    # this will allow the program to communicate with a website/API 
-    # the parameters (params) are sent to CelesTrak to specify which satellite you want and whcih data format you want back 
-    resp.raise_for_status() # raises exception if the server returns unsuccessful HTTP status 
-    if "1 " not in resp.text:
-        raise ValueError(f"CelesTrak  returned no data for {norad_id}: {resp.text[:80]!r}") 
-        # basically trying to detect when a response contains no TLE 
-    return resp.text 
 
+    )
+    resp.raise_for_status()
+    if "1 " not in resp.text:
+        raise ValueError(f"CelesTrak returned no data for {norad_id}: {resp.test[:80]!r}")
+    return resp.text
 
 def get_tle(norad_id: int, max_age_hours: float = TLE_MAX_AGE_HOURS) -> TLE:
     """ returns a TLE, downloading only when the cached copy is to old 
@@ -93,7 +92,11 @@ def load_tracked() -> dict[int, TLE]:
             )
     return out 
 
-
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    for norad_id, tle in load_tracked().items():
+        print(f"{norad_id:>6}  {tle.name:<14} epoch {tle.epoch:%Y-%m-%d %H:%M} UTC "
+              f"(age {tle.age_hours():.1f} h)")
 
 
 

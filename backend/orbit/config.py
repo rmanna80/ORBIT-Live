@@ -16,7 +16,7 @@ class GroundStation:
 
 GROUND_STATION = GroundStation("Goshen, NY", 41.4020, -74.3243, 0.133) # you can change the location to your own 
 
-TRACKET_SATELILITES = {
+TRACKED_SATELLITES = {
     25544: "ISS (ZARYA)",
     48274: "CSS (TIANHE)",
     20580: "HUBBLE",

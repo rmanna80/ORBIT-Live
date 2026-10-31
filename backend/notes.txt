@@ -118,4 +118,58 @@ what the output should be: a calculator that turns lets say "15.5 orbits per day
 
 
 
+
+=============== Part 2 ===================
+
+By the end: a parser that validates and decodes any TLE, a polite CelesTrak downloader with a cache, and a SQLite table that quietly collects every TLE you ever download
+ 
+
+• A Two-Line Element set packs an orbit into 138 characters. The fixed columns come from the punch-card era, which is why every character position matters.
+• The US Space Force tracks objects with radar and optical sensors, fits an orbit, and publishes it on Space-Track. CelesTrak (run by T.S. Kelso) redistributes it for free.
+• The numbers are mean elements: averaged in the specific way SGP4 expects. They're fine for rough sizes like altitude and period, but never feed them to a plain Kepler model to get positions — only SGP4 reads them correctly.
+• The epoch is when the snapshot was taken. Predictions drift the further you get from it, roughly 1–3 km per day in low orbit, which is why we refresh.
+• Current events hook: the catalog ran out of 5-digit numbers in July 2026. New objects get 6-digit numbers and no TLE at all. The successor format is OMM (JSON/XML/CSV). Good stretch goal; TLEs still work for everything we track.
+
+🛰️ The Main Idea: What is a TLE?
+A TLE (Two-Line Element) is a standardized text format that describes the orbit of a satellite at a specific moment in time. Think of it like a "snapshot" of where a satellite is and how fast it's moving. Scientists and hobbyists feed this data into a math formula (called SGP4) to predict where the satellite will be in the future .
+
+The example in your text is for the ISS (International Space Station).
+
+
+
+Decoding the ISS Example (Anatomy)
+The two lines of numbers look like gibberish, but every space has a meaning. Here is what the key parts of your example mean:
+
+- 25544: This is the Satellite Number (Catalog Number). It's like a license plate for the ISS .
+
+- U: Stands for Unclassified. This means the data is public, not a military secret .
+
+- 08264.51782528: This is the Epoch (the timestamp). It means the data was calculated on the 264th day of 2008 (year 08), specifically at about 12:25 PM (the .5178 is the fraction of the day that has passed) .
+
+-11606-4: This is the BSTAR drag term. It tells the computer how much the satellite is being slowed down by the very thin air in space (atmospheric drag) .
+
+- 51.6416: The Inclination. This tells you the ISS orbits at an angle of about 51.6 degrees relative to the Earth's equator .
+
+- 15.72125391: The Mean Motion. This means the ISS completes about 15.7 orbits around the Earth every single day .
+
+What does a "Negative BSTAR" mean?
+- Meaning of a negative BSTAR (like the -11606-4 in the example). 
+In simple terms:
+- BSTAR is a number that represents drag. A negative value is normal for objects in orbit. It essentially tells the calculation model that the satellite is losing a tiny bit of energy due to friction with the atmosphere, causing its orbit to slowly decay or change over time. It's a standard part of the math used to keep track of the satellite accurately .
+
+The "2-Hour Rule" (Why the Cache Exists)
+The text mentions CelesTrak (a popular website that gives away this satellite data for free). Because they are a small non-profit, they have strict rules to stop their servers from crashing.
+
+- The Rule: The satellite data on CelesTrak only updates once every 2 hours .
+
+- The Punishment: If a computer program tries to download the data repeatedly before it has updated (for example, trying every 5 minutes), CelesTrak will block that computer (sending an HTTP 403 error, which means "Forbidden") .
+
+- The Solution (Cache): To avoid getting blocked, programs save the data they downloaded on their own computer. This is called a Cache. If the program needs the data again within those 2 hours, it just reads the saved file instead of bothering CelesTrak's servers again .
+
+What is OMM?
+OMM (Orbit Mean-Elements Message). This is just a newer, more modern way to package the exact same satellite data. While the TLE is a rigid, two-line text format (which has a limit on how many satellites it can name), OMM can be formatted as a flexible file (like XML or JSON) and can handle newer satellites with longer ID numbers .
+
+In short: You are looking at the instruction manual for downloading satellite tracking data. You need to read the columns to know where the satellite is, and you must respect the 2-hour wait time so the free data provider doesn't ban you.
+
+
 """

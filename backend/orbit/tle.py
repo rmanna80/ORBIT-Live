@@ -26,21 +26,21 @@ class TLE:
     rev_number: int
 
 
-@property
-def semi_major_axis_km(self) -> float:
-    return semi_major_axis_km(self.mean_motion_rev_per_day)
+    @property
+    def semi_major_axis_km(self) -> float:
+        return semi_major_axis_km(self.mean_motion_rev_per_day)
 
-@property 
-def perigree_apogee_alt_km(self) -> tuple[float, float]:
-    """ calculates appproximate perigee and apogee altitudes """
-    return perigree_apogee_alt_km(
-        self.semi_major_axis_km,
-        self.eccentricity
-    )
+    @property 
+    def perigee_apogee_alt_km(self) -> tuple[float, float]:
+        """ calculates appproximate perigee and apogee altitudes """
+        return perigee_apogee_alt_km(
+            self.semi_major_axis_km,
+            self.eccentricity
+        )
 
-def age_hours(self, now: datetime | None = None) -> float: # calculates TLE age 
-    now = now or datetime.now(timezone.utc) # says that now can be either datetime value or None, and it defaults to None 
-    return (now - self.epoch).total_seconds() / 3600  # subtract the epoch from the current time, convert diffence into seconds, divide by 3600 to get hours 
+    def age_hours(self, now: datetime | None = None) -> float: # calculates TLE age 
+        now = now or datetime.now(timezone.utc) # says that now can be either datetime value or None, and it defaults to None 
+        return (now - self.epoch).total_seconds() / 3600  # subtract the epoch from the current time, convert diffence into seconds, divide by 3600 to get hours 
 
 
 class TLEError(ValueError): # checking to see if data is valid 
@@ -69,7 +69,7 @@ def checksum(line: str) -> int:
 def _implied_decimal(field: str) -> float:
     """ parse TLE exponent notation: 12345-3 means 0.12345-3"""
     field = field.strip() # remove spaces from the beginning and end of string 
-    if not filed:
+    if not field:
        return 0.0
     sign = -1.0 if field[0] == "-" else 1.0 # determine the sign 
     field = field.lstrip("+-") # remove the leading sign 
@@ -84,11 +84,11 @@ def _catalog_number(field: str) -> int:
         kinda doing the same thing a checksum  function """
 
     field = field.strip()
+    letters = "ABCDEFGHJKLMNPQRSTUVWXYZ"
     if field and field[0].isalpha():
-        letters = "abcdefghjklmnpqrstuv"
-        letters.upper()
-        return 
-    (letters.index(field[0].upper()) + 10 ) * 10_000 + int(field[1:])
+        if len(field) != 5 or field[0] not in letters or not field[1:].isdigit():
+            raise ValueError("ERROR: Invalid Apha-5 catalog number")
+        return (letters.index(field[0]) + 10) * 10_000 + int(field[1:])
     return int(field)
 
 def _epoch(year2: str, day_of_year: str) -> datetime:
@@ -101,42 +101,42 @@ def _epoch(year2: str, day_of_year: str) -> datetime:
                                                             # if youadded 1 full day to Jan. 1, you'd get the obv.. Jan. 2 
                                                             # in which case to represent day 1, you add zero days (to represent day 301, you add 300 days)
 
-    def parse_tle(name: str, line1: str, line2: str) -> TLE:
-        """ receives the three strings and returns a TLE object 
-            basically its job is to claen the data, validate its structure, verify its checksums,
-            confirm the two lines identify the same satellite, extract each orbital field, 
-            and then build the python object... Simple enough lol 
-            """
-        line1, line2 = line1.strip(), line2.strip()
-        if len(line1) != 69 or len(line2) != 69:
-            raise TLEError("... each TLE line must be = 69 characters")
-        if line1[0] != "1" or line2[0] != "2":
-            raise TLEError("the lines must start with 1 and 2 !!!")
-        for line in (line1, line2):
-            if checksum(line) != int(line[68]):
-                raise TLEError(f"the checksum fun failed on line {line[0]}")
-        # check the satellite idetifiers and see if they match 
-        norad = _catalog_number(line1[2:7])
-        if norad != _catalog_number(line2[2:7]):
-            raise TLEError(" the numbers dont match the lines ")
+def parse_tle(name: str, line1: str, line2: str) -> tle:
+    """ receives the three strings and returns a tle object 
+        basically its job is to claen the data, validate its structure, verify its checksums,
+        confirm the two lines identify the same satellite, extract each orbital field, 
+        and then build the python object... simple enough lol 
+        """
+    line1, line2 = line1.strip(), line2.strip()
+    if len(line1) != 69 or len(line2) != 69:
+        raise tleerror("... each tle line must be = 69 characters")
+    if line1[0] != "1" or line2[0] != "2":
+        raise tleerror("the lines must start with 1 and 2 !!!")
+    for line in (line1, line2):
+        if checksum(line) != int(line[68]):
+            raise tleerror(f"the checksum fun failed on line {line[0]}")
+    # check the satellite idetifiers and see if they match 
+    norad = _catalog_number(line1[2:7])
+    if norad != _catalog_number(line2[2:7]):
+        raise tleerror(" the numbers dont match the lines ")
 
-        # extract all the values
-        return TLE(
-            name=name.strip() or str(norad),
-            line1=line1,
-            line2=line2,
-            norad_id=norad,
-            epoch=_epoch(lilne1[18:20], line1[20:32]),
-            bstar=_implied_decimal(line1[53:61]),
-            inclination_deg=float(line2[8:16]),
-            raan_deg=float(line2[17:25]),
-            eccentricity=float("0." + line2[36:33].strip()),
-            arg_perigee_deg=float(line2[34:42]),
-            mean_anomaly_deg=float(line2[43:51]),
-            mean_motion_rev_per_day=float(line2[52:63]),
-            rev_number=int(line2[63:68].strip() or 0),
+    # extract all the values
+    return TLE(
+        name=name.strip() or str(norad),
+        line1=line1,
+        line2=line2,
+        norad_id=norad,
+        epoch=_epoch(line1[18:20], line1[20:32]),
+        bstar=_implied_decimal(line1[53:61]),
+        inclination_deg=float(line2[8:16]),
+        raan_deg=float(line2[17:25]),
+        eccentricity=float("0." + line2[36:33].strip()),
+        arg_perigee_deg=float(line2[34:42]),
+        mean_anomaly_deg=float(line2[43:51]),
+        mean_motion_rev_per_day=float(line2[52:63]),
+        rev_number=int(line2[63:68].strip() or 0),
 
-        )
+    )
 
 
 def parse_tle_text(text: str) -> list[TLE]:
@@ -145,7 +145,7 @@ def parse_tle_text(text: str) -> list[TLE]:
     """
     lines = [
         ln.strip()
-        for ln in text.splitlines():
+        for ln in text.splitlines()
             if ln.strip()
     ] # use list comprehension, basically splits the text into lines, removes empty or whitespace, and trims trailing whitespace
     tles, i = [], 0 
@@ -161,10 +161,10 @@ def parse_tle_text(text: str) -> list[TLE]:
             tles.append(parse_tle("", lines[i], lines[i + 1]))
             i += 2 
         elif i + 2 < len(lines) and lines[i + 1].startswith("1 ") and lines[i + 2].startswith("2 "):
-            tles.append(parse_tle(lines[i], lines[i + 1], lines[i = 2]))
+            tles.append(parse_tle(lines[i], lines[i + 1], lines[i + 2]))
             i += 3
-    else:
-        raise TLEError(f" ERROR: cannot read the incoming TLE starting with line {i + 1}; {lines[i]!r} ")
+        else:
+            raise TLEError(f" ERROR: cannot read the incoming TLE starting with line {i + 1}; {lines[i]!r} ")
     return tles # returns a list containing all successfully parsed satellite objects 
 
 
@@ -177,12 +177,12 @@ if __name__ == "__main__":
     tle = parse_tle_text(EXAMPLE_ISS)[0]
     perigee, apogee = tle.perigee_apogee_alt_km
     print(f"{tle.name} NORAD {tle.norad_id}")
-    print(f"epoch %d %H:%M:%S UTC ")
+    print(f"epoch {tle.epoch:%Y-%m-%d %H:%M:%S} UTC ")
     print(f"Inclination {tle.inclination_deg} deg")
-    print(f" eccentricity {tle.eccentricity}")
-    print(f"mean motion {tle.mean_motion_rev_per_day} rev/day")
+    print(f"Eccentricity {tle.eccentricity}")
+    print(f"Mean Motion: {tle.mean_motion_rev_per_day} rev/day")
     print(f"B* drag {tle.bstar:.4e}")
-    print(f"perigee/apogee {perigee:.1f} / {apogee:.1f} km")
+    print(f"Perigee/Apogee {perigee:.1f} / {apogee:.1f} km")
 
 
 
