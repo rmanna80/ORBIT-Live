@@ -109,7 +109,7 @@ def teme_to_ecef(r_teme, v_teme, jd_ut1):
     # but from space-oriented reference frame, you are moving because earth is spinning 
     # so the velocity transformation needs to remove the contribution from Earths rotation 
     #
-    vs = c * v[:, 0] + s * v[:, 1] + OMEGA_EARTH * y # rotate the X and Y components of velocity
+    vx = c * v[:, 0] + s * v[:, 1] + OMEGA_EARTH * y # rotate the X and Y components of velocity
     vy = -s * v[:, 0] + c * v[:, 1] - OMEGA_EARTH * x # rotate velocity Y component, then subtract the earths rotation correction  
     v_ecef = np.column_stack([vx, vy, v[:, 2]])
     # now we have both positon and velocity in our earth-fixed frame 
@@ -182,14 +182,14 @@ def ecef_to_geodetic(r_ecef):
     #what to understand: because we're measuring altitude relative to an ellipsoid, not a sphere is why were doing that equaiton 
 
     # convert lat and long to degrees
-    lat_deg, long_deg = np.degrees(lat), np.degrees(long)
-    if np.dim(r_ecef) == 1:
+    lat_deg, lon_deg = np.degrees(lat), np.degrees(lon)
+    if np.ndim(r_ecef) == 1:
         return (
         float(lat_deg[0]),
-        flot(long_deg[0]),
+        float(lon_deg[0]),
         float(alt[0])
     )
-    return lat_deg, long_deg, alt 
+    return lat_deg, lon_deg, alt 
     
 
 # write the reverse conversion 
@@ -201,10 +201,10 @@ def ecef_to_geodetic(r_ecef):
 #
 def geodetic_to_ecef(
         lat_deg: float,
-        long_deg: float,
+        lon_deg: float,
         alt_km: float 
 ) -> np.ndarray:
-    lat, lon = np.radians(lat_deg), np.radians(long_deg)
+    lat, lon = np.radians(lat_deg), np.radians(lon_deg)
     # convert to radians because we're going to use sin() and cos()
     N = R_EARTH / np.sqrt(
         1 - E2_EARTH * np.sin(lat)**2 
@@ -243,52 +243,52 @@ class LookAngles(NamedTuple):
     range_km: np.ndarray
     range_rate_km_s: np.ndarray
 
-    def look_angles(r_sat_ecef, v_sat_ecef, station: GroundStation) -> LookAngles:
-        # what info do we need 
-        # satellite pos, satellite velocity, ground-station location 
-        r, v = np.atleast_2d(r_sat_ecef), np.atleast_2d(v_sat_ecef)
-        # now each postion and velocity has three columns 
-        # 
-        # next find the ground station ECEF psotion 
-        rho = r - geodetic_to_ecef(station.lat_deg, station.long_deg, station.alt_km)
+def look_angles(r_sat_ecef, v_sat_ecef, station: GroundStation) -> LookAngles:
+    # what info do we need 
+    # satellite pos, satellite velocity, ground-station location 
+    r, v = np.atleast_2d(r_sat_ecef), np.atleast_2d(v_sat_ecef)
+    # now each postion and velocity has three columns 
+    # 
+    # next find the ground station ECEF psotion 
+    rho = r - geodetic_to_ecef(station.lat_deg, station.lon_deg, station.alt_km)
 
-        #next convert the stations latitude and long into radians 
-        lat, long = np.radians(station.lat_deg), np.radians(station.long_deg)
-        sl, cl, so, co = np.sin(lat), np.cos(lat), np.sin(lon), np.cos(lon)
+    #next convert the stations latitude and long into radians 
+    lat, lon = np.radians(station.lat_deg), np.radians(station.lon_deg)
+    sl, cl, so, co = np.sin(lat), np.cos(lat), np.sin(lon), np.cos(lon)
 
-        # now calculate the east components
-        # we want to know how much of the station-to-satellite vector points east 
-        east = (
-            -so * rho[:, 0]
-            +co * rho[:, 1]
-        )
-        # here were combining the X and Y components to find th local eastward displacement 
-        #
-        # calculate North 
-        north = (
-            -sl * co * rho[:, 0]
-            - sl * so * sho[:, 1]
-            + cl * rho[:, 2]
-        )
+    # now calculate the east components
+    # we want to know how much of the station-to-satellite vector points east 
+    east = (
+        -so * rho[:, 0]
+        +co * rho[:, 1]
+    )
+    # here were combining the X and Y components to find th local eastward displacement 
+    #
+    # calculate North 
+    north = (
+        -sl * co * rho[:, 0]
+        - sl * so * rho[:, 1]
+        + cl * rho[:, 2]
+    )
 
-        # calculate Up 
-        up = (
-            cl * co * rho[:, 0]
-            + cl * so * rho[:, 1]
-            + sl * rho[:, 2]
-        )
+    # calculate Up 
+    up = (
+        cl * co * rho[:, 0]
+        + cl * so * rho[:, 1]
+        + sl * rho[:, 2]
+    )
 
-        # calculate range 
-        rng = np.linalg.norm(rho, axis=1) # axis=1 since x, y, x row constains displacement we want one distance for each row 
-        #calculate azimuth
-        az = np.mod(np.degrees(np.arctan2(east, north)), 360.0) 
-        # calculate elevation
-        el = np.degrees(np.arcsin(up / rng))
-        # calculate range rate 
-        # basically it would be useful to know:
-        #   is the satellite getting closer to my satation or moving futher away 
-        range_rate = np.sum(rho * v, axis=1) / rng 
-        return LookAngles(az, al, rng, range_rate)
+    # calculate range 
+    rng = np.linalg.norm(rho, axis=1) # axis=1 since x, y, x row constains displacement we want one distance for each row 
+    #calculate azimuth
+    az = np.mod(np.degrees(np.arctan2(east, north)), 360.0) 
+    # calculate elevation
+    el = np.degrees(np.arcsin(up / rng))
+    # calculate range rate 
+    # basically it would be useful to know:
+    #   is the satellite getting closer to my satation or moving futher away 
+    range_rate = np.sum(rho * v, axis=1) / rng 
+    return LookAngles(az, el, rng, range_rate)
 
 
 if __name__ == "__main__":

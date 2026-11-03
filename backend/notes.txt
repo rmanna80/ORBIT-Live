@@ -290,4 +290,84 @@ Return the drift.
         - its axes dont simpily rotate along with Earths surface 
           TEME->Earth-fixed coordinates->latitude, longitude, altitude
 
+
+
+
+
+
+
+======================== PART 4 ========================================
+
+WE BACK!!!!
+before we write code i want to take a look back at what we've already accomplished because PART 4 is going to use almost everything that we've built 
+
+First, what have we built so far?
+Part 1 - Orbital mechanics (kepler.py)
+- we started by asking some basic questions about satellites
+  - how fast does a satellite travel? how long does it take to orbit Earth? what is the difference between a circular and elliptical oribit?
+    - we wrote functions using Newtons and Keplers equations to calculate orbital period, semi_major_axis, speed, perigee, and apogee
+      - this gave us an understanding of the basic physics
+Part 2 - Satellite Data (tle.py)(history.py)(catalog.py)
+- then we needed real satellite information 
+  - we built a TLE parser, learned how to download orbital elements from CelesTrak, and stored then using SQLite
+    - now we can write: tle = get_tle(25544)
+      - that returns an object containing the ISS's orbital information
+Part 3 - Orbital Propagation (propagate.py)
+- next we asked...
+  - "ok, we've got the orbital information, but how do we know where the ISS is at a specific time? "
+    - we created a Propagator class using SGP4 
+      - now we can write: 
+        prop = Propagator(tle)
+        r, v = prop.teme(datetime.now(timezone.utc))
+        - that gives us two vectors 
+          - r contains the satellite position = [x, y, z]
+          - v contains the velocities of it = [vx, vy, vz]
+            - but there is a problem 
+              - those coordinates are in TEME, not latitude and longitude
+                - we know where the satellite is in an Earth-centred coordinate system using  SGP4, but we don't know where to place it over earths surface on our map 
+                  - Thats where part 4 comes into play 
+
+
+How part 4 connects everything: 
+- parts 1 & 2: get the satellite orbital information
+  (TLE, orbital elements; cached data)
+- part 3: SGP4 
+  (predict position and velocity in TEME r = [x, y, z])
+- part 4A: rotate TEME into ECEF 
+  (account for Earth's rotation)
+- Part 4B: convert ECEF to geographic coordinates
+  (lad, long, altitude)
+- Part 4C: ground-station tracking 
+  (Azimuth, elevation, range, range rate)
+
+By the end we'll be able to answer two new quesiton
+- where is the ISS over Earth?
+  and 
+- If i am standing at my ground station, which direction would i point my antenna to track it?
+
+Understanding coordinate frames
+- ok, first i need to understand what these coordinate systems actually mean 
+  - imagine we're tracking/watching a satellite move around earth 
+    - there are three different prespectives we care about ]\
+      1. TEME - A space-oriented perspective 
+      SGP4 gives us satellite coordinates in TEME. It is Earth-centred, approximately inertial frame, with axes defined relative to celestia directions rather than rotating along with the ground 
+      2. ECEF - Earth's rotating perspective 
+      Earth-centred 3D=(0, 0, 0), Earth-fixed.(the rotation) The coordinate aces rotate with Earth. The X-axis passes through the equator (0 degree latitude) at the Greenwich meridian(0 degree Longitude), and Z points toward the North Pole
+      3. ENU - Ground station's perspective 
+      East, North, Up. This describes the direction of a satellite relative to a specific location on earth's surface 
+
+TEME: where is the satellite in space?
+ECEF: where is the satellite relative to the rotating Earth?
+ENU: where is the satellite relative to me standing on the ground?
+
+
+
+
+
+
+
+
+
+
+
 """
