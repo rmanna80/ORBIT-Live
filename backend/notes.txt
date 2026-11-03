@@ -362,7 +362,59 @@ ENU: where is the satellite relative to me standing on the ground?
 
 
 
+================ Part 5 =================================
 
+we just finished part 4, where we learned how to take satellite position in space and turn it into latitude, longitude, altitude 
+- now we want to do something with those coordinates
+  - want to draw the path the ISS traces across Earths surface as it orbits 
+
+
+First, lets remember what we have build so far 
+- part 1: kepler.py = calculate orbital periods, speeds, and basic orbital geometry
+- part 2: tle.py, catalog.py = download and understand satellite orbital information
+- part 3: propagate.py = predict a satellite position and velocity at a space in time 
+- part 4: frames.py = convert that position into latitude, longitude, and altitude
+
+  - now imagine running this code
+    tle = get_tle(25544)
+    prop = Propagator(tle)
+    r, v = prop.teme(now)
+    - that gives us the ISS position at one moment 
+      - then in part 4 it let us calculate 
+        r_ecef, v_ecef = teme_to_ecef(r, v, jd + fr)
+        lat, lon, alt = ecef_to_geodetic(r_ecef)
+        - now we know its geographic position 
+          - but that is one point 
+            - what if you want to see where it has been and where it will travel over the next three oribits?
+              - for that you will need a lot of points 
+                - that is what part 5 solves 
+  - part 2 - get tle satellite orbital information)
+    then:
+    - part 3: propagate many timestamps (a sequence of TEME positions)
+      then:
+      - part 4: convert coordinates (latitude, longitude, and altitude at every time)
+        now:
+        - part 5: ground track (connect those points into a path across a world map)
+
+
+  - a ground track is the path traced by the point directly underneath a satellite on earths surface 
+    - imagine the ISS has a laser pointing straight down toward earth 
+      - if we recorded every location the dot has visited and connected the dots, we'd have a ground track 
+        - this is interesting: it doesnt look like a circle on a flat map 
+          - it looks like waves !!!
+            - why?
+              - because the orbit is tilted and earth is rotating underneath it. when you display those positions using lat and lon they form a wave like pattern 
+            - why does each orbit shift west?
+              - earth continues rotating while the ISS completes each orbit 
+                - so when the ISS comes back around, the ground has moved underneath its orbital plane 
+                  - for our historical test TLE, one orbit takes approximately 91.6 min 
+                    - in that time, earth rotates about 23 degrees 
+                      - earths J2 effect also slowly rotates the orbital plane, so the next ground track shifts a little further west 
+                        - that is why you will see successive passes appearing roughly 23 degrees apart in longitude
+            - why doesnt the ISS pass over the poles?
+              - its orbital inclination is approximately 51.6 degrees 
+                - that means its orbital plane doesnt carry it over the polar regions 
+                  - its ground track is limited to approximately 51.6 degrees north and south, with small differences possible when using Geodetic lat and a perturbed orbit model 
 
 
 
