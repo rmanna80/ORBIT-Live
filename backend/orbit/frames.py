@@ -116,6 +116,7 @@ def teme_to_ecef(r_teme, v_teme, jd_ut1):
     # rigth now we only have a two-dimensional array but i want to return a three-componenet vector 
     if np.ndim(r_teme) == 1: # np.ndim() tells us how many dimensions the original input had 
         return r_ecef[0], v_ecef[0]
+    return r_ecef, v_ecef
 
 # now we have ECEF coordinates. But those are still X, Y, Z numbers 
 # how can we turn them into lad, long, altitude 
