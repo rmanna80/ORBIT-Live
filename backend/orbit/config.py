@@ -25,7 +25,7 @@ TRACKED_SATELLITES = {
 }
 
 DOWNLOAD_FREQ_HZ = 437.0e6
-SAT_EIRP = 0.0                # 1 W into a 0 dBi antenna
+SAT_EIRP_DBW = 0.0                # 1 W into a 0 dBi antenna
 SATATION_G_OVER_T_DB = -20.0  # small UHF yagi + low-noise amplifer 
 BANDWIDTH_HZ = 10_000.0 
 

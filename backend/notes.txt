@@ -420,6 +420,136 @@ First, lets remember what we have build so far
 
 
 
+=================================================== PART 6 ==============================================================================
+
+In part 5, we successfully worked out how to generate hundreds of satellite positions and turn them into a ground track 
+- now i want to answer a different question:
+  - instead of asking where the ISS is over earth, i want to know when the ISS will be visible from my ground station 
+    - more specifically, i want:
+      - when the satellite rises above my min elevation 
+      - what compass direction its coming from 
+      - when it reaches its highest point 
+      - how high it gets in the sky 
+      - when it drops back below my min elevation
+      - how long the pass lasts 
+
+    - basically, this is what we have built so far 
+      - part 2 - tle.py (get satellite orbital elements)
+        - part 3 - propagate.py (calculate position and velocity at a time)
+          - part 4 - frames.py (calculate Azimuth and elevation from out station)
+            - part 6 - passes.py (find the exact times that elevation crosses a threshold, then find the peak)
+
+
+  - we already have a function called look_angles(r_ecef, v_ecef, station)
+    - and that can tell a satellites elevation at a particular instant 
+      - so technically, we could calculate its elevation at 12:00, then 12:01, then 12:02, and so on
+        - but in doing so it doesnt really tell us precisely when it rises or sets 
+          - what if the satellite rises at 12:00:07?
+            - if we are only calculating positons every 30 sec, we will know that the crossing happened somewhere between two samples 
+              - Part 6 is about searching between those samples to find the actual event time 
+
+  AOS, TCA, LOS:
+  - imagine we are standing outside with an antenna, waiting for the ISS to come overhead 
+    - at first its below the horizon
+      - then it rises into view, travels across the sky, reaches a max elevation, and eventually disappears below the horizon 
+        - we give three important event names:
+          - AOS (acquistion of signal) = the satellite rises above our chosen min elevation angle, this is when our predicated communication window starts
+          - TCA (time of closest approach) = the closest approach event, in this code we approximate it using the time of max elevation, in whcih is generally very close for ordinary LEO passes (low orbit passovers) but isnt mathematically identical in every case 
+          - LOS (loss of signal) = the satellite drops below our min elevation, our predicated communication window ends 
+
+  - why do we use a 10(degree) elevation mask?
+    - if we're standing at our ground station, we may not have a completelu clear view down the horizon
+      - there might be trees, buildings, hills, or other obstacles 
+        - and radio signals at very low elevation can experience additional attenuation and propagation effects 
+          - so instead of tracking everything above 0(degrees), we can set a min elevation of 10(degrees)
+            - ex:
+              station.min_elevation_deg = 10.0
+              - meaning only count a pass when a satellite is at least 10(degrees) above the horizon 
+
+
+
+
+
+=================================== PART 7 ================================
+
+We've finished the first six parts of our satellite tracking system 
+- now we're going to add something that will make out dashboard more interesting
+  - I want to know what happens to a radio signal as the satellite moves, whether the satellite is receiving sunlight, and how much energy a simulated satellite battery has left 
+    - we're going to build two files:
+      - sun.py - calculates the suns postion, determines whether a satellite is in earths shadow and simulates battery charging and discharging 
+      - link.py - calculate Doppler shift, radio signal losses, estimated signal quality, and a dashboard signal percentage 
+
+  - first lets connect what we have done so far 
+    - part 1 - kepler = understand orbital speeds, periods, and orbital geometry 
+      - part 2 - TLE = download and parse real satellite orbital information
+        - part 3 - SGP4 = predict satellite positon and velocity at any time
+          - part 4 - Frames = convert TEME into earth-fixed coordinates, latitude, and longitude 
+            - part 5 - Ground tracks = predict paths across Earths surface 
+              - part 6 - Passes = calculate AOS, peak elevation, LOS, and station look angles 
+          
+          - remember this fucntion from part 4:
+            look = look_angles(r_ecef, v_ecef, GROUND_STATION)
+            that gives us:
+            look.azimuth_deg
+            look.elevation_deg
+            look.range_km
+            look.range_rate_km_s
+
+            - those last two values are important for part 7 
+              - range_km tells us how far the satellite is from our ground station 
+              - range_rate_km_s tells us how quickly that distance is changing
+                - we're going to use both values to calculate the radio link 
+                  - for sunlight and eclipses, we'll instead use the satellite TEME positon from Part 3 and compare it with the direction toward the sun  
+
+                    - Parts 2 & 3: TLE + SGP4
+                (satellite pos & velocity at time t)
+            - Part 4: Ground station geometry
+  (link.py = Doppler shift, path loss, SNR, modeled signal strength)
+        - Sun direction + TEME position 
+  (sun.py Eclipse, solar input, simulated battery level)
+
+  - there is one thing that i want to get right before we start 
+    - the doppler calculation comes from predicted orbital geometry, but the signal percentage and battery percentage are simulations, not measurements from the real ISS 
+
+
+Part A - Understanding the radio link 
+- what is Doppler shift?
+  - imagine you are standing on the side of the road, and the ambulance approaches with its siren on 
+    - as it approaches the siren sounds higher 
+    - as it moves away it sounds lower 
+      - radio signal experience a similar effect 
+        - our satellite transmits at a particular frequency, but the frequency we receive chnages lightly becuase the satellite is moving relative to our ground station 
+          - a typical CubeSat might transmit around 437 MHz 
+            - lets use that as out ex frequency
+              - the doppler equation is:
+                (Delta)f = -f(Vr/c)
+                where:
+                - Delta f is the doppler frequency shift in hertz
+                - f is the transmitted frequency in hertz
+                - Vr is range rate in km per seconds 
+                - c is the speed of light in km per second 
+
+                - remember from part 4: 
+                  - negative range rate means approaching. position range rate means receding
+                    so if the satellite is approaching:
+                      Vr = -7km/s 
+                    then:
+                      (Delta)f = -d(-7/c)
+                      - negative multiplied by a negative == positive 
+                        therefore the frequency we receive is higher 
+                        - when the satellite starts moving away, the doppler shift becomes negative
+                          - the first order relationship is used in satellite-ground communication calculations 
+
+
+
+
+
+
+
+
+
+
+
 
 
 """
