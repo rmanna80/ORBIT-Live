@@ -545,7 +545,62 @@ Part A - Understanding the radio link
 
 
 
+================================== PART 8 =======================================
+Orbital Anomaly Detection
+- basically we have build a system that can predict where a satellite is, show its ground track, determine when it passes over our ground station, calculate radio doppler shift, and model sunlight and battery charge 
+  - now we want out system to do something different 
+    - instead of just predicting a satellite orbit, we want it to notice when that orbit changes unexpectedly 
+      - imagine we have been tracking the ISS for 30 days
+        - its altitude has been slowly decreasing because of atmospheric drag (air resistence that slows objects in the atmosphere)
+          - then one day, the orbit suddenly gets higher 
+            - why?
+              - maybe the ISS performed a reboot maneuver (fire engines to increase high getting out of the atmosphere so the drag effect is less)
+                - how could our software notice that without having access to the ISS internal telemetry?
 
+  - what we have done so far:
+    - part 1: kepler; orbital mechanics = convert mean motion  (how fast it orbits) into orbit size
+      - part 2: TLE history; TLE parsing and SQLite storage = retreieve older orbital element sets 
+        - part 3: SGP4; orbital propagation = compare yesterdays prediction with todays orbit 
+          - part 4: Frames; COrrdinate transformations = laater, map the lcoation of a detected event 
+            - part 5: ground tracks; Historical and predicted paths = visualize changes to orbital paths 
+              - part 6: passes; ground-station visibility = recalculated passes after an orbit change 
+                - part 7: communications; radio and power models = upadted modeled conditions using new orbital data 
+
+      - the most important connection is part 2 
+        - remember how we created an SQLite database to store TLE? 
+          - every time we download a new TLE, we can save it 
+            - eventually, out database contains something like: 
+              ISS — September 20 — TLE
+              ISS — September 21 — TLE
+              ISS — September 22 — TLE
+              ISS — September 23 — TLE
+              ...
+              ISS — October 19   — TLE
+              - each TLE represents an orbital estimate at its epoch 
+                - what if we compare them?
+                  - we can look for changes that dont fit the satellite usual behavior 
+
+        - important rule:
+          - a detected anomaly does not prove that an engine burn, breakup, or other event occurred 
+            - a TLE change would also reflect observation error, an improved orbit fit, inconsistent TLE sources, or other pertubations. Out detector will identify candidates that deserve further investigation
+
+
+        - what does an orbital anomaly look like?
+          - lets picture 30 days of orbital data
+            - normally, atmospheric drag causes an ISS-like low orbit to lose energy, so its semi-major axis tends to decrease slowly 
+              - now imagine someone performs an engine burn that rasises the orbit 
+                - we would see a sudden upward jump 
+                  - that is the type of event we want to flag in our program
+
+                    - signal 1 - Orbit size: is the semi-major axis changing unusually quickly?
+                    - signal 2 - forecast disagreement: if yesterdays TLE predicted todays position, how far away  is that prediction from the postion implied by todays TLE?
+                    - signal 3 - saftey and freshness thresholds: is perigee unusually low? is our newest TLE too old? 
+                      - and we will also check for abrupt changes in inclination as a simple indicator of possible orbital-plane changes
+
+
+                        - how do we know our detector actually works?
+                          - we need data where we already know what happened 
+                            - basically going to generate an artifical maneuver and see if the detector catches it 
 
 
 

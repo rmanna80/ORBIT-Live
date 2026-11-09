@@ -199,3 +199,141 @@ def in_shadow(r_sat_teme, r_sun): # inputs are satellite positon in TEME and app
 sun = np.array([1.0, 0.0, 0.0])
 satellite = np.array([-7000.0, 0.0, 0.0])
 print(in_shadow(satellite, sun))
+
+""" 
+Now lets simulate the satellite battery
+- now we can determine whether the satellite is in sunlight or eclipse 
+  - what can we do with that inforamtion? 
+    - we can model a bettery 
+      - imagien a hypothetical small satellite with 
+        parameter                               value 
+        battery capacity                        40 Wh 
+        solar panel output in sunlight          30 W 
+        electrical load                         18 W 
+        starting charge                         80%
+
+        - Watts (W) measure pwoer, or how quicly energu is being transferred 
+          - Watts-hour (Wh) measures energy 
+            - if a system consumes 18 watts for one hour it uses:
+              18 W x 1 h = 18 Wh 
+              - that distinction is important 
+                - our battery stores energy in Watts-hour 
+                  - our solar panels generate power in watts 
+                    - our electrical componenets consume power in watts 
+                      - to update the battey, we need to convert power over a time interval into energy 
+
+        - how much energy do we gain in sunlight?
+          solar power = 30 W 
+          load = 18 W 
+          - so the net power:
+            30 - 18 = +12 W 
+            - that means the battery gains energu at a rate of 12 watts, assuming all avaliable surplus solar power reches the battery 
+              - if the satellite says sunlit for one hour:
+                12 W c 1 h = 12 Wh 
+
+            - now what happens during an eclipse?
+              - solar power becomes zero 
+                - but the load still consumes 18 watts 
+                  - so:
+                    0 - 18 = -18 W 
+                    - that means the battery is discharging 
+                      - for a 33 min eclipse:
+                        -18 x 33/60 = -9.9 Wh 
+                        - the simple energy balance is psitive. That doesnt guarantee a real satellite battery is healthy, but it gives us a useful template 
+
+
+"""
+
+
+
+
+# want to create a class that represents a battey that remembers its state between calculations 
+
+class BatteryModel:
+    def __init__(
+        self, 
+        capacity_wh=40.0,
+        solar_w=30.0,
+        load_w=18.0,
+        charge_pct=80.0 
+    ): # default model parameters, they can always change them when creating a battery 
+        # store the parameters inside our object 
+        self.capacity_wh = capacity_wh
+        self.solar_w = solar_w
+        self.load_w = load_w 
+        # our starting percentage is 80%:
+        #   40 x 0.8 = 32 Wh 
+        self.charge_wh = capacity_wh * charge_pct / 100 
+        # self.charge_wh represents the batterys current stored energy 
+
+    # thinking at our simulation 
+    # we are predicting the satellite position every 60 seconds 
+    # at each step, we know whether the satellite is in sunlight or eclipse
+    # so now we want:
+    # "Advance the battery simulation by every 60 seconds under these sunlight conditions"
+    def step(self, dt_s: float, sunlit: bool) -> float: # update the battey
+        # dt_s represents elapsed time in seconds 
+        # sunlit is True if the satellite is receiving sunlight & False is its in shadow
+        # we want the function to return the new battey percentage
+
+        # calulate net power 
+        # if the sunlight is avaliable, we get pwoer from the solar panels 
+        # otherwise, solar input is zero 
+        solar_input = self.solar_w if sunlit else 0.0 
+        # read it as: if sunlit is truem we use self.solar_w; otherwise use zero 
+        # subtracty our electrical load 
+        power_h = solar_input - self.load_w 
+        # power_h = 30 - 18 = +12 | 0 - 18 = 18 
+        # power_h tells us how quicly the battery is gaining or losing energy
+        #
+        # convert power into watts-hour 
+        # (delta)E = P((delta)t / 3600)
+        energy_change_wh = power_h * dt_s / 3600
+        # if our interval is 60 sec and we are in sunlight:
+        #       12 x 60 / 3600 = 0.2 Wh 
+        # so in one minute, the battery gains 0.2 Wh 
+        # in eclipse:
+        #       -18 x 60 / 3600 = -0.3 Wh 
+        # during one min of an eclipse, the battey loses 0.3 Wh 
+        #       self.charge_wh += energy_change_wh 
+        # can tdo that, what if our simulation charges the battery beyond its capacity?
+        # likewise, energy shouldnt become negative 
+        # so we need to clamp the result between zero and capacity
+        self.charge_wh = min(
+            self.capacity_wh,
+            max(0.0, self.charge_wh + energy_change_wh)
+        ) # this is the same approach used when limiting the modeled signal percentage 0-100% 
+        return self.percent 
+    
+    # to find the battey percentage 
+    #   Battery % = 100 (Stored energy / capacity)
+    @property 
+    def percent(self) -> float:
+        return 100 * self.charge_wh / self.capacity_wh 
+
+    # now we have a class that remembers battery energu adn updates it as the satellite moves between sunlight and eclipse
+    # we assume fixed solar output, but real solar output depends on the angle between the panels and the sun, and the real electrical systems have conversion losses and charging limits 
+battery = BatteryModel(charge_pct=50.0)
+battery.step(dt_s=3600, sunlit=True)
+print(battery.percent)
+
+
+
+if __name__ == "__main__":
+    from .propagate import Propagator, julian_dates, time_grid
+    from .tle import EXAMPLE_ISS, parse_tle_text
+
+    tle = parse_tle_text(EXAMPLE_ISS)[0]
+    times = time_grid(tle.epoch, minutes=185, step_s=60)
+    r, _ = Propagator(tle).teme_many(times)
+    jd, fr = julian_dates(times)
+    dark = in_shadow(r, sun_position_km(jd + fr))
+    battery = BatteryModel()
+    for t, d in zip(times, dark):
+        pct = battery.step(60, sunlit=not d)
+        if t.minute % 10 == 0:
+            print(f"{t:%H:%M}  {'ECLIPSE ' if d else 'sunlit  '}  battery {pct:5.1f}%")
+    print(f"in shadow {dark.mean() * 100:.0f}% of the time")
+
+
+
