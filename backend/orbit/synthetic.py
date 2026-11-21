@@ -50,7 +50,7 @@ def synthetic_history(
     reboost_dn: float=-0.0045,
     decay_dn: float=0.0002,
     seed: int=7 
-) _> list[TLE]:
+) -> list[TLE]:
 # template: starting orbital elements 
 # days=30: generate 30 daily TLEs 
 # reboost_day=18: insert the maneuver on simulated day index 18 
@@ -58,18 +58,18 @@ def synthetic_history(
 # decay_dn=0.0002: increase mean motion by 0.0002 rev/day during ordinary decay 
 # seed=7: make random variation reproducible 
 
-""" 
-why would increasing mean motion represent a lower orbit?
-- lets connect this back to part 1:
-  - we know that mean motion and semi-major axis are related by Keplers third law:
-    n = sqrt( u . a^3) // u (standard gravitational parameter) rep the gravitational strength of the central body 
-    - as the semi-major axis decreases, the mean motion increases 
-      - that mean lower orbits generally complete revolutions more quickly
-    - so for our test:
-      drag -> semi-major axis slowly decreases -> mean motion increases 
-      reboost -> semi-major axis increases -> mean motion decreases 
-      - that is why the reboost uses a negative reboost_dn 
-"""
+ 
+# why would increasing mean motion represent a lower orbit?
+# - lets connect this back to part 1:
+#   - we know that mean motion and semi-major axis are related by Keplers third law:
+#     n = sqrt( u . a^3) // u (standard gravitational parameter) rep the gravitational strength of the central body 
+#     - as the semi-major axis decreases, the mean motion increases 
+#       - that mean lower orbits generally complete revolutions more quickly
+#     - so for our test:
+#       drag -> semi-major axis slowly decreases -> mean motion increases 
+#       reboost -> semi-major axis increases -> mean motion decreases 
+#      - that is why the reboost uses a negative reboost_dn 
+
 
 
 # make the random variation reproducible 
@@ -87,7 +87,7 @@ why would increasing mean motion represent a lower orbit?
     n = base.no_kozai
     mo = base.mo
     node = base.nodeo 
-    argp = base.argo 
+    argp = base.argpo 
     # n i SGP4s mean motion 
     # mo is mean anomaly
     # node is the right ascension of the ascending node or RAAN 
@@ -135,8 +135,8 @@ why would increasing mean motion represent a lower orbit?
             mo = (
                 mo + (
                     prev.mdot + 0.5 * (n_new - n)
-            ) * 1440
-        ) % 2 (2 * math.pi)
+                ) * 1440
+            ) % (2 * math.pi)
             # why multiply by 0.05?  we are approzimating the effect of transitioning between the old and new orbital rates over the day, rather than assuming the new rate applied for the entire interval 
             n = n_new
         
@@ -149,7 +149,7 @@ why would increasing mean motion represent a lower orbit?
             + day 
     )   
         # now we need to initialize the new satellite record 
-        sat.spg4init(
+        sat.sgp4init(
             WGS72,
             "i",
             base.satnum,
@@ -165,23 +165,23 @@ why would increasing mean motion represent a lower orbit?
             node 
     )
     
-""" 
-Argument	            Meaning
-WGS72	                Gravitational constants used by SGP4
-"i"	                    Improved SGP4 operation mode
-base.satnum	            Satellite catalog number
-epoch - 2433281.5	    Epoch in days since the SGP4 1949 reference date
-base.bstar	            B* drag parameter
-base.ndot	            First mean-motion derivative field
-base.nddot	            Second mean-motion derivative field
-base.ecco	            Orbital eccentricity
-argp	                Argument of perigee
-base.inclo	            Orbital inclination
-mo	                    Mean anomaly
-n	                    Mean motion in radians per minute
-node	                RAAN
+        """ 
+        Argument	            Meaning
+        WGS72	                Gravitational constants used by SGP4
+        "i"	                    Improved SGP4 operation mode
+        base.satnum	            Satellite catalog number
+        epoch - 2433281.5	    Epoch in days since the SGP4 1949 reference date
+        base.bstar	            B* drag parameter
+        base.ndot	            First mean-motion derivative field
+        base.nddot	            Second mean-motion derivative field
+        base.ecco	            Orbital eccentricity
+        argp	                Argument of perigee
+        base.inclo	            Orbital inclination
+        mo	                    Mean anomaly
+        n	                    Mean motion in radians per minute
+        node	                RAAN
 
-"""
+        """
 
 
 # add the remaining TLE metadata 
@@ -199,6 +199,6 @@ node	                RAAN
             line1,
             line2 
         )
-        hostory.append(new_tle)
+        history.append(new_tle)
         prev = sat 
     return history 

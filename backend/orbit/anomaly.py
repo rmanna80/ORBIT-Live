@@ -18,28 +18,11 @@ Bulding the anomaly detector
 
 
 
+
+
 from dataclasses import asdict, dataclass 
 # why asdict: becuase our API might need to cover an anomaly object into a dict for JSON serialization 
 from datetime import datetime, timezone 
-# we are going to store anomaly times and calculate how old the newest TLE is 
-import numpy as np 
-from .propagate import PropagationError, Propagator 
-# we will use Propagator for forecast comparsions and  PropagationError if a propagation fails 
-
-@dataclass
-class Anomaly:
-    norad_int: int 
-    name: str 
-    epoch: datetime 
-    kind: str 
-    serverity: str 
-    message: str 
-    value: float 
-    # possible (kind) values in our supplied detector inclue:
-    # maneuver_raise
-    # maneuver_lower
-    # plane_change
-    # forecast_miss
     # decay
     # stale_data
     # these are lables assigned by our model
@@ -50,6 +33,21 @@ class Anomaly:
     #       warning 
     #       critical 
 
+import numpy as np 
+
+from .propagate import PropagationError, Propagator 
+from .tle import TLE 
+
+
+@dataclass 
+class Anomaly:
+    norad_id: int 
+    name: str 
+    epoch: datetime 
+    kind: str 
+    severity: str 
+    message: str 
+    value: float 
 
     # convert an anomaly into a dict 
     def to_dict(self) -> dict:
@@ -153,13 +151,13 @@ def forecast_miss_km(older: TLE, newer: TLE) -> float:
     # now what if the propagation fails?
     # raise PropagationError
     try:
-        r_old - Propagator(older).teme(newer.epoch)
+        r_old, _ = Propagator(older).teme(newer.epoch)
     except PropagationError:
         return float("nan") # nan = not a number    
     # calculate the postion from the newer TLE at its own epoch
     r_new, _ = Propagator(newer).teme(newer.epoch)
     # now we subtract the two vectors 
-    r_old - r_new  # produces the thre-dimensonal displacement between the two predicted positons 
+    # r_old - r_new  # produces the thre-dimensonal displacement between the two predicted positons 
     return float(np.linalg.norm(r_old - r_new)) # that gives us the postion difference in km 
     # this source version catches propagation erros for the older TLE but not the newer one. For more robust production use, we have to handle either failure and report it seperately 
     # why is it useful? imagine normal adjacent - TLE disagreements are a few km 
@@ -208,26 +206,224 @@ def detect_anomalies(tles: list[TLE], z_threshold: float=3.5, now: datetime | No
         # collect historical orbital measurements 
         # now we need to start looking for unexpected orbital changes 
         # the supplied implementation only performs its statical comparsions when we have at least 5 TLE 
-        if len(tles) > 5: # 5 is the min safeguard, isnt enough for a highly reliable statical detector, but it gives us a starting point 
-            # now we need the arrays containing the orbital measurements
-            a = np.array([
-                t.semi_major_axis_km
-                for t in tles 
-            ]) # now a contains all our semi-major axis values 
-            # inclination - describes the tilt of the orbital plane 
-            inc = np.array([
-                t.inclinatio_deg 
-                for t in tles 
-            ]) # now we have historical orbit size and inclination measurements 
-            # we shouldn't blindly assume every measurement of TLE is one day apart 
-            # we need to calculate the actual elasped time 
-            days = np.array([
-                (t.epoch - tles[0].epoch).total_seconds() / 86400
-                for t in tles
-            ]) # 86,400 is the amount of seconds in a day 
+    if len(tles) > 5: # 5 is the min safeguard, isnt enough for a highly reliable statical detector, but it gives us a starting point 
+        # now we need the arrays containing the orbital measurements
+        a = np.array([
+            t.semi_major_axis_km
+            for t in tles 
+        ]) # now a contains all our semi-major axis values 
+        # inclination - describes the tilt of the orbital plane 
+        inc = np.array([
+            t.inclination_deg 
+            for t in tles 
+        ]) # now we have historical orbit size and inclination measurements 
+        # we shouldn't blindly assume every measurement of TLE is one day apart 
+        # we need to calculate the actual elasped time 
+        days = np.array([
+            (t.epoch - tles[0].epoch).total_seconds() / 86400
+            for t in tles
+        ]) # 86,400 is the amount of seconds in a day 
+            # now days might look like:
+            # [0.0, 1.0. 2.0. 3.5, 4.5] -> this tells us how far apart out observations are 
+        
+        # now we want to calculate the rate of orbital change 
+        # we want to measure how quickly the semi-major axis changes 
+        # ex: if it shrinks 0.06km over one day, its -0.06km/day
+        #       if it shrinks 0.12 over two days then its -0.06km/day 
+        #           basically we need to divide the changes in orbital size by changes in time 
+        # need to calculate the difference between the consecutive timestamps 
+        # in this case = np.diff(days) -> subtracts the neighboring values 
+        # ex: np.diff([0, 1, 2, 4]) -> [1, 1, 2]
+        dt = np.maximum(np.diff(days), 1e-3) # ensures that every interval used in the division is at least 0.001 days = 86.4 secconds 
+        # now we have to calculate the differences in the semi-major axis 
+        # again we would use np.diff(a) -> a lets say contains [6730.90, 6730.84, 6730.78] -> returns [-0.06, -0.06]
+        # from that we will divide by the time intervals 
+        da_rate = np.diff(a) / dt 
+        # calculate the robust Z-scores 
+        z = robust_z(da_rate) # now every TLE pair has a corresponding anomaly score 
+                                # large pos number ~ unusually strong orbit increase relative to the baseline 
+                                # large neg number ~ unusually strong decrease 
+        # now we need to calculate the forecast misses for every TLE pair 
+        # we know that our first signal measures orbital-size changes 
+        #   now we can calculate our second signal: which is the difference between the old and the new orbital predictions 
+        misses = np.array([
+            forecast_miss_km(p, c)
+            for p, c in zip(tles, tles[1:])
+        ]) # now misses contains a forecast error for each neighboring TLE pair 
+            # reminder that forecast_miss_km() can return  a float meaning that if SGP4 propagation fails we wouldnt want NaN to break our calculation 
+        fill = (
+            np.nanmedian(misses)
+            if np.isfinite(misses).any()
+            else 0.0 
+        ) 
+        # now we replace the invalid values
+        misses = np.where(
+            np.isfinite(misses),
+            misses,
+            fill 
+        )
+
+        """ np.where() -> selecting values based on a condition
+                - meaning that if a forecast miss is finite, use its actual value 
+                    - otherwise use the fallback median 
+
+                    - note to self: replacing failed propagation with an ordinary value can hide important data 
+                        quality problems. 
+                        - meaning should preserve the failure as a seperate alert and exclude it from the baseline calculation"""
+
+
+        #  calculate robust Z-scores for the forecast_miss
+        miss_z = robust_z(misses)
+
+        # detect possible maneuvers 
+        # now comes the decision making logic 
+        # we have out history 
+        # we have the semi-major axis changes 
+        # we have robust z-score 
+        # we have forecast misses
+        # -> now we need to decide which observation to flag meaning that we will have to loop through all TLEs expect the first one (why? each anomaly comapres a TLE with its predecessor)
+        for k, tle in enumerate(tles[1:]):
+            # calculate the actual change in semi-major axis 
+            da = a[k + 1] - a[k] # k + 1 becuase we are comapring the newer TLE against the previous one 
+            if abs(z[k]) > z_threshold and abs(da) > 0.2: # meaning: abs(z[k]) > z_threshold akss whether the robust z-score exceeds our anomaly threshold (by default it is 3.5)
+                                                            # abs(da) > 0.2: baically the statistical signifiance alone doesnt calculate physical important changes 
+                                                            # meaning that if out baseline variation is extremely small, even a tiny absolute change might get a huge z-score 
+                                                            # the 0.2 km cuttoff is a heuristic selected just for this, its not like a universal num that is used 
+                # if da > 0 the semi-major axis increased 
+                kind = (
+                    "manuever_raise"
+                    if da > 0
+                    else "manuever_lower"
+                )
+                # now save the anomaly
+                add(
+                    tle, 
+                    kind,
+                    "warning",
+                    (
+                        f"semi-major axis changed {da:+.2f} km"
+                        f"(z={z[k]:+.1f}); "
+                        f"previous TLE missed by {misses[k]:.0f} km"
+                    ),
+                    da 
+                )
+
+                """ 
+                basically from add >> we are recording the following:
+                    - how much the semi-major axis has changed 
+                    - its robust z-score
+                    - how far the odler TLEs prediciton disagreed with the newer one 
+
+                this makes the alert useful rather than just saying like anomaly detected
+                """
+            
+
+            # detect unusal forecast disagreements 
+            # meaning if the semi-major axis doesnt change big enough to trigger our maneuver condition
+            # but the old TLEs predicted postion differs signifianly from the new TLEs prediciton
+            elif miss_z[k] > 2 * z_threshold and misses[k] > 10: 
+            # miss_z[k] > 2 * z_threshold: requires the forecast miss to have an unusally high ribust z-score >> since our threshold is 3.5, need a score greater than 7 
+            # misses[k] > 10: requires an absolute forecast disagreement greater than 10 km 
+                add(
+                    tle, 
+                    "forecast_miss",
+                    "info",
+                    (
+                        f"previous TLE missed by {misses[k]:.0f} km"
+                        f"with no clear orbit change"
+                    ),
+                    misses[k]
+                )
+
+            """ 
+            Detect arubt inclination changes 
+            - now we want to detect potential orbital plane changes 
+                - we already have stored all of the inclination values in: inc 
+                - compare them to consecutive incliantions: inc[k + 1] - inc[k]
+                    
+                that gives us the incliantion change in degrees 
+            """
 
 
 
+            if abs(inc[k + 1] - inc[k]) > 0.02:
+                add(
+                    tle, 
+                    "plane_change",
+                    "warining",
+                (
+                        f"Incliantion changed"
+                        f"{inc[k + 1] - inc[k]:.3f} deg"
+                    ),
+                    inc[k + 1] - inc[k]
+                )
+
+
+
+
+# check whether the satellite is entering a low orbit 
+# - now we are done with looking at consecutive changes in TLEs
+# - but there is still our detector that should also look at the newest satellite orbital condition 
+# - use perigee (lowest point of the orbit) & apogee
+        # meaning that if the perigee gets very low, atmospheric drag can become much stronger 
+
+
+    perigee, _ = latest.perigee_apogee_alt_km
+# check the thresholds 
+    if perigee < 180:
+        add(
+            latest,
+            "decay",
+            "critial",
+            f"Perigee {perigee:.0f} km: re-entry risk",
+            perigee
+        ) 
+    elif perigee < 250:
+        add(
+            latest,
+            "decay",
+            "warinig",
+            f"Perigee {perigee:.0f} km: low orbit",
+            perigee
+        )
+        # detect stale TLE data meaning if we havent received a new TLE for several days this can cause our predicitons to become inaccurate 
+        # so we want to know hether the newest orbital information is to old 
+    age = latest.age_hours(
+        now or datetime.now(timezone.utc)
+    )
+        # now check the age 
+    if age > 72: # meaning 3 days 
+        add(
+            latest,
+            "stale_data",
+            "info",
+            (
+                f"newest TLE is {age / 24:.1f} days old; "
+                f"postions may be less reliable"
+            ),
+            age 
+        )
+    return found 
+
+
+
+
+            
+            
+
+            
+if __name__ == "__main__":
+    from .synthetic import synthetic_history
+    from .tle import EXAMPLE_ISS, parse_tle_text
+
+    template = parse_tle_text(EXAMPLE_ISS)[0]
+    history = synthetic_history(template, days=30, reboost_day=18)
+    print("day  epoch        a (km)    forecast miss (km)")
+    for k, (p, c) in enumerate(zip(history, history[1:]), start=1):
+        print(f"{k:>3}  {c.epoch:%m-%d %H:%M}  {c.semi_major_axis_km:9.3f}  {forecast_miss_km(p, c):8.1f}")
+    print()
+    for an in detect_anomalies(history, now=history[-1].epoch):
+        print(f"[{an.severity.upper()}] {an.epoch:%Y-%m-%d} {an.kind}: {an.message}")
 
 
 
